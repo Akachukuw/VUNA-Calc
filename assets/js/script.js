@@ -4,8 +4,43 @@ var right = '';
 var steps = [];
 var MAX_STEPS = 6;
 
+/* ===============================
+   ERROR & SUGGESTION HANDLING
+================================ */
+
+function showError(message, suggestion = "") {
+  const errorBox = document.getElementById("error-box");
+  if (!errorBox) return;
+
+  errorBox.innerHTML = `
+    <strong>Error:</strong> ${message}
+    ${suggestion ? `<div class="suggestion">💡 ${suggestion}</div>` : ""}
+  `;
+  errorBox.style.display = "block";
+}
+
+function clearError() {
+  const errorBox = document.getElementById("error-box");
+  if (!errorBox) return;
+  errorBox.innerHTML = "";
+  errorBox.style.display = "none";
+}
+
+/* ===============================
+   INPUT FUNCTIONS
+================================ */
 
 function appendToResult(value) {
+    clearError();
+
+    const target = operator.length === 0 ? left : right;
+
+    // Prevent multiple decimals
+    if (value === "." && target.includes(".")) {
+        showError("Invalid number format", "You already added a decimal point.");
+        return;
+    }
+
     if (operator.length === 0) {
         left += value.toString();
     } else {
@@ -15,6 +50,7 @@ function appendToResult(value) {
 }
 
 function bracketToResult(value) {
+    clearError();
     if (operator.length === 0) {
         left += value;
     } else {
@@ -24,6 +60,7 @@ function bracketToResult(value) {
 }
 
 function backspace() {
+    clearError();
     if (right.length > 0) {
         right = right.slice(0, -1);
     } else if (operator.length > 0) {
@@ -35,10 +72,22 @@ function backspace() {
 }
 
 function operatorToResult(value) {
-    if (left.length === 0) return;
+    clearError();
+
+    if (left.length === 0) {
+        showError("No number entered", "Enter a number before choosing an operator.");
+        return;
+    }
+
+    if (operator && right.length === 0) {
+        showError("Operator already selected", "Enter the next number.");
+        return;
+    }
+
     if (right.length > 0) {
         calculateResult();
     }
+
     operator = value;
     updateResult();
 }
@@ -49,6 +98,8 @@ function clearResult() {
   operator = "";
   steps = [];
 
+  clearError();
+
   document.getElementById("word-result").innerHTML = "";
   document.getElementById("word-area").style.display = "none";
   document.getElementById("steps").innerText = "";
@@ -56,13 +107,29 @@ function clearResult() {
   updateResult();
 }
 
-
+/* ===============================
+   CALCULATION WITH ERROR CHECKS
+================================ */
 
 function calculateResult() {
-  if (left.length === 0 || operator.length === 0 || right.length === 0) return;
+  clearError();
+
+  if (left.length === 0 || operator.length === 0 || right.length === 0) {
+    showError(
+      "Incomplete expression",
+      "Enter two numbers and an operator before pressing equals."
+    );
+    return;
+  }
 
   const l = parseFloat(left);
   const r = parseFloat(right);
+
+  if (isNaN(l) || isNaN(r)) {
+    showError("Invalid number", "Please enter valid numeric values.");
+    return;
+  }
+
   let result;
 
   switch (operator) {
@@ -76,9 +143,14 @@ function calculateResult() {
       result = l * r;
       break;
     case "/":
-      result = r !== 0 ? l / r : "Error";
+      if (r === 0) {
+        showError("Division by zero", "You cannot divide a number by zero.");
+        return;
+      }
+      result = l / r;
       break;
     default:
+      showError("Unknown operation");
       return;
   }
 
@@ -94,7 +166,9 @@ function calculateResult() {
   updateResult();
 }
 
-
+/* ===============================
+   NUMBER TO WORDS
+================================ */
 
 function numberToWords(num) {
     if (num === 'Error') return 'Error';
@@ -159,6 +233,10 @@ function numberToWords(num) {
     return result.trim();
 }
 
+/* ===============================
+   DISPLAY & SPEECH
+================================ */
+
 function updateResult() {
     const display = left + (operator ? ' ' + operator + ' ' : '') + right;
     document.getElementById('result').value = display || '0';
@@ -167,7 +245,10 @@ function updateResult() {
     const wordArea = document.getElementById('word-area');
 
     if (left && !operator && !right) {
-        wordResult.innerHTML = '<span class="small-label">Result in words</span><strong>' + numberToWords(left) + '</strong>';
+        wordResult.innerHTML =
+          '<span class="small-label">Result in words</span><strong>' +
+          numberToWords(left) +
+          '</strong>';
         wordArea.style.display = 'flex';
     } else {
         wordResult.innerHTML = '';
@@ -179,9 +260,6 @@ function updateResult() {
 function speakResult() {
     const speakBtn = document.getElementById('speak-btn');
     const wordResultEl = document.getElementById('word-result');
-
-    // Get text content only (strips the <span class="small-label"> part if needed)
-    // Actually we just want the number part
     const words = wordResultEl.querySelector('strong')?.innerText || '';
 
     if (!words) return;
@@ -209,6 +287,5 @@ function enableSpeakButton() {
 function updateStepsDisplay() {
   const stepsDiv = document.getElementById("steps");
   if (!stepsDiv) return;
-
   stepsDiv.innerText = steps.join("\n");
 }
